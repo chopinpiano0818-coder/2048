@@ -1,0 +1,19 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(Game2048)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(SDL2 CONFIG REQUIRED)
+find_package(SDL2_ttf CONFIG REQUIRED)
+
+add_executable(2048 WIN32
+    2048.cpp
+)
+
+target_link_libraries(2048 PRIVATE
+    SDL2::SDL2
+    SDL2::SDL2main
+    SDL2_ttf::SDL2_ttf
+)
