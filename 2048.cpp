@@ -1506,9 +1506,14 @@ void useShuffle() {
         }
     }
 
-    random_shuffle(
+    std::mt19937 rng(
+        static_cast<unsigned int>(time(nullptr))
+    );
+    
+    std::shuffle(
         positions.begin(),
         positions.end()
+        rng
     );
 
     for (
