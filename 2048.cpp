@@ -9,6 +9,7 @@
 #include <fstream>
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 using namespace std;
 
@@ -1454,6 +1455,8 @@ void useHammer() {
     }
 }
 
+
+
 // ============================================================
 // SHUFFLE
 // ============================================================
@@ -1485,12 +1488,8 @@ void useShuffle() {
 
     saveUndoState();
 
-    shuffle(
-        values.begin(),
-        values.end(),
-        std::default_random_engine(
-            (unsigned)time(nullptr)
-        )
+    std::mt19937 rng(
+        static_cast<unsigned int>(time(nullptr))
     );
 
     vector<pair<int, int>> positions;
@@ -1875,6 +1874,24 @@ void drawGameOver() {
         true
     );
 
+    drawText(
+        "Items still available",
+        WINDOW_W / 2,
+        545,
+        fontSmall,
+        {119, 110, 101, 255},
+        true
+    );
+
+    drawText(
+        "H: Hammer   S: Shuffle   U: Undo",
+        WINDOW_W / 2,
+        575,
+        fontSmall,
+        {119, 110, 101, 255},
+        true
+    );
+
     SDL_RenderPresent(renderer);
 }
 
@@ -1989,8 +2006,12 @@ bool init() {
     }
 
 
+    #ifdef _WIN32
+    string fontPath = "C:/Windows/Fonts/arialbd.ttf";
+    #else
     string fontPath =
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+    #endif;
 
 
     fontHuge =
@@ -2149,6 +2170,46 @@ int main() {
         // ====================================================
 
         if (gameOver) {
+
+            if (key == SDLK_h) {
+                useHammer();
+
+                if (!running) {
+                    break;
+                }
+
+                if (canMove()) {
+                    gameOver = false;
+                }
+
+                drawBoard();
+
+                continue;
+            }
+
+            if (key == SDLK_s) {
+                useShuffle();
+
+                if (canMove()) {
+                    gameOver = false;
+                }
+
+                drawBoard();
+
+                continue;
+            }
+
+            if (key == SDLK_u) {
+                useUndo();
+
+                if (canMove()) {
+                    gameOver = false;
+                }
+
+                drawBoard();
+
+                continue;
+            }
 
             continue;
         }
