@@ -34,30 +34,54 @@ void clearScreen() {
     cout << "\033[2J\033[1;1H";
 }
 
+string getColor(int value) {
+    switch (value) {
+        case 2:    return "\033[37m";
+        case 4:    return "\033[36m";
+        case 8:    return "\033[33m";
+        case 16:   return "\033[32m";
+        case 32:   return "\033[35m";
+        case 64:   return "\033[31m";
+        case 128:  return "\033[94m";
+        case 256:  return "\033[96m";
+        case 512:  return "\033[93m";
+        case 1024: return "\033[95m";
+        case 2048: return "\033[91m";
+        default:   return "\033[97m";
+    }
+}
+
 void printBoard() {
     clearScreen();
 
-    cout << "===== 2048 =====\n";
+    cout << "\033[1m";
+    cout << "========== 2048 ==========\n";
     cout << "Score: " << score << "\n\n";
+    cout << "\033[0m";
 
     for (int y = 0; y < SIZE; y++) {
-        cout << "+------+------+------+------+\n";
+        cout << "+--------+--------+--------+--------+\n";
 
         for (int x = 0; x < SIZE; x++) {
             cout << "|";
 
-            if (board[y][x] == 0)
-                cout << setw(6) << " ";
-            else
-                cout << setw(6) << board[y][x];
+            if (board[y][x] == 0) {
+                cout << setw(8) << " ";
+            } else {
+                cout << getColor(board[y][x]);
+                cout << "\033[1m";
+                cout << setw(8) << board[y][x];
+                cout << "\033[0m";
+            }
         }
 
         cout << "|\n";
     }
 
-    cout << "+------+------+------+------+\n\n";
+    cout << "+--------+--------+--------+--------+\n\n";
 
-    cout << "矢印キーで移動 / Qで終了\n";
+    cout << "↑ ↓ ← → で移動\n";
+    cout << "Q で終了\n";
 }
 
 void addRandomTile() {
@@ -71,7 +95,8 @@ void addRandomTile() {
         }
     }
 
-    if (emptyCells.empty()) return;
+    if (emptyCells.empty())
+        return;
 
     int index = rand() % emptyCells.size();
 
@@ -93,9 +118,10 @@ vector<int> mergeLine(vector<int> line) {
     vector<int> result;
 
     for (int i = 0; i < (int)temp.size(); i++) {
-        if (i + 1 < (int)temp.size() &&
-            temp[i] == temp[i + 1]) {
-
+        if (
+            i + 1 < (int)temp.size() &&
+            temp[i] == temp[i + 1]
+        ) {
             int merged = temp[i] * 2;
 
             result.push_back(merged);
@@ -120,14 +146,16 @@ bool moveLeft() {
     for (int y = 0; y < SIZE; y++) {
         vector<int> line;
 
-        for (int x = 0; x < SIZE; x++)
+        for (int x = 0; x < SIZE; x++) {
             line.push_back(board[y][x]);
+        }
 
         vector<int> result = mergeLine(line);
 
         for (int x = 0; x < SIZE; x++) {
-            if (board[y][x] != result[x])
+            if (board[y][x] != result[x]) {
                 changed = true;
+            }
 
             board[y][x] = result[x];
         }
@@ -142,16 +170,18 @@ bool moveRight() {
     for (int y = 0; y < SIZE; y++) {
         vector<int> line;
 
-        for (int x = SIZE - 1; x >= 0; x--)
+        for (int x = SIZE - 1; x >= 0; x--) {
             line.push_back(board[y][x]);
+        }
 
         vector<int> result = mergeLine(line);
 
         for (int i = 0; i < SIZE; i++) {
             int x = SIZE - 1 - i;
 
-            if (board[y][x] != result[i])
+            if (board[y][x] != result[i]) {
                 changed = true;
+            }
 
             board[y][x] = result[i];
         }
@@ -166,14 +196,16 @@ bool moveUp() {
     for (int x = 0; x < SIZE; x++) {
         vector<int> line;
 
-        for (int y = 0; y < SIZE; y++)
+        for (int y = 0; y < SIZE; y++) {
             line.push_back(board[y][x]);
+        }
 
         vector<int> result = mergeLine(line);
 
         for (int y = 0; y < SIZE; y++) {
-            if (board[y][x] != result[y])
+            if (board[y][x] != result[y]) {
                 changed = true;
+            }
 
             board[y][x] = result[y];
         }
@@ -188,16 +220,18 @@ bool moveDown() {
     for (int x = 0; x < SIZE; x++) {
         vector<int> line;
 
-        for (int y = SIZE - 1; y >= 0; y--)
+        for (int y = SIZE - 1; y >= 0; y--) {
             line.push_back(board[y][x]);
+        }
 
         vector<int> result = mergeLine(line);
 
         for (int i = 0; i < SIZE; i++) {
             int y = SIZE - 1 - i;
 
-            if (board[y][x] != result[i])
+            if (board[y][x] != result[i]) {
                 changed = true;
+            }
 
             board[y][x] = result[i];
         }
@@ -206,25 +240,40 @@ bool moveDown() {
     return changed;
 }
 
+bool hasWon() {
+    for (int y = 0; y < SIZE; y++) {
+        for (int x = 0; x < SIZE; x++) {
+            if (board[y][x] >= 2048) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 bool canMove() {
     for (int y = 0; y < SIZE; y++) {
         for (int x = 0; x < SIZE; x++) {
-            if (board[y][x] == 0)
+            if (board[y][x] == 0) {
                 return true;
+            }
         }
     }
 
     for (int y = 0; y < SIZE; y++) {
         for (int x = 0; x < SIZE - 1; x++) {
-            if (board[y][x] == board[y][x + 1])
+            if (board[y][x] == board[y][x + 1]) {
                 return true;
+            }
         }
     }
 
     for (int y = 0; y < SIZE - 1; y++) {
         for (int x = 0; x < SIZE; x++) {
-            if (board[y][x] == board[y + 1][x])
+            if (board[y][x] == board[y + 1][x]) {
                 return true;
+            }
         }
     }
 
@@ -232,9 +281,11 @@ bool canMove() {
 }
 
 void initializeGame() {
-    for (int y = 0; y < SIZE; y++)
-        for (int x = 0; x < SIZE; x++)
+    for (int y = 0; y < SIZE; y++) {
+        for (int x = 0; x < SIZE; x++) {
             board[y][x] = 0;
+        }
+    }
 
     score = 0;
 
@@ -247,12 +298,28 @@ int main() {
 
     initializeGame();
 
+    bool winShown = false;
+
     while (true) {
         printBoard();
 
+        if (hasWon() && !winShown) {
+            cout << "\033[93m";
+            cout << "\033[1m";
+            cout << "★ 2048達成！！ ★\n";
+            cout << "\033[0m";
+            cout << "このまま続けられます。\n\n";
+
+            winShown = true;
+        }
+
         if (!canMove()) {
+            cout << "\033[91m";
+            cout << "\033[1m";
             cout << "GAME OVER!\n";
-            cout << "Score: " << score << "\n";
+            cout << "\033[0m";
+
+            cout << "最終スコア: " << score << "\n";
             break;
         }
 
@@ -264,24 +331,29 @@ int main() {
             break;
         }
 
-        // 矢印キーは ESC [ A/B/C/D の3文字
+        // Linuxの矢印キー:
+        // ESC [ A = ↑
+        // ESC [ B = ↓
+        // ESC [ C = →
+        // ESC [ D = ←
         if (key == 27) {
             char second = getKey();
 
             if (second == '[') {
                 char third = getKey();
 
-                if (third == 'A')
+                if (third == 'A') {
                     moved = moveUp();
-
-                else if (third == 'B')
+                }
+                else if (third == 'B') {
                     moved = moveDown();
-
-                else if (third == 'C')
+                }
+                else if (third == 'C') {
                     moved = moveRight();
-
-                else if (third == 'D')
+                }
+                else if (third == 'D') {
                     moved = moveLeft();
+                }
             }
         }
 
@@ -289,6 +361,9 @@ int main() {
             addRandomTile();
         }
     }
+
+    cout << "\033[0m";
+    cout << "\n2048を終了しました。\n";
 
     return 0;
 }
