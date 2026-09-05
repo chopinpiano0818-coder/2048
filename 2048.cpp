@@ -1156,9 +1156,34 @@ void useHammer() {
 
     clearQueuedKeys();
 
-    while (true) {
+    while (running) {
 
-        drawBoard();
+        // --------------------------------
+        // まず盤面を描く
+        // ※ drawBoard() は使わない！
+        // --------------------------------
+
+        drawBackground();
+
+        for (int y = 0; y < SIZE; y++) {
+
+            for (int x = 0; x < SIZE; x++) {
+
+                if (board[y][x] != 0) {
+
+                    drawTile(
+                        board[y][x],
+                        y,
+                        x
+                    );
+                }
+            }
+        }
+
+
+        // --------------------------------
+        // 選択中のマス
+        // --------------------------------
 
         SDL_SetRenderDrawBlendMode(
             renderer,
@@ -1178,21 +1203,64 @@ void useHammer() {
         selection.w = TILE;
         selection.h = TILE;
 
-        SDL_SetRenderDrawColor(
-            renderer,
-            255,
-            40,
-            40,
-            150
-        );
+
+        // 空マスと数字ありで色を変える
+
+        if (board[cursorY][cursorX] != 0) {
+
+            SDL_SetRenderDrawColor(
+                renderer,
+                255,
+                60,
+                60,
+                100
+            );
+
+        } else {
+
+            SDL_SetRenderDrawColor(
+                renderer,
+                100,
+                100,
+                100,
+                80
+            );
+        }
 
         SDL_RenderFillRect(
             renderer,
             &selection
         );
 
+
+        // 選択枠
+        SDL_SetRenderDrawColor(
+            renderer,
+            255,
+            255,
+            255,
+            255
+        );
+
+        // 枠を少し太くする
+        for (int i = 0; i < 4; i++) {
+
+            SDL_Rect border = {
+                selection.x + i,
+                selection.y + i,
+                selection.w - i * 2,
+                selection.h - i * 2
+            };
+
+            SDL_RenderDrawRect(
+                renderer,
+                &border
+            );
+        }
+
+
         drawText(
-            "HAMMER: Choose a tile",
+            "HAMMER - Choose a tile",
             WINDOW_W / 2,
             185,
             fontSmall,
@@ -1200,7 +1268,24 @@ void useHammer() {
             true
         );
 
+
+        drawText(
+            "Arrow keys: Select   Enter: Break   ESC: Cancel",
+            WINDOW_W / 2,
+            685,
+            fontSmall,
+            {119, 110, 101, 255},
+            true
+        );
+
+
+        // ★ここで初めて画面を表示
         SDL_RenderPresent(renderer);
+
+
+        // --------------------------------
+        // 入力待ち
+        // --------------------------------
 
         SDL_Event event;
 
@@ -1208,87 +1293,166 @@ void useHammer() {
             continue;
         }
 
+
         if (event.type == SDL_QUIT) {
 
             running = false;
+
             return;
         }
+
 
         if (
             event.type != SDL_KEYDOWN ||
             event.key.repeat != 0
         ) {
+
             continue;
         }
+
 
         SDL_Keycode key =
             event.key.keysym.sym;
 
+
+        // --------------------------------
+        // カーソル移動
+        // --------------------------------
+
         if (key == SDLK_LEFT) {
 
-            cursorX =
-                max(0, cursorX - 1);
+            if (cursorX > 0) {
+                cursorX--;
+            }
         }
 
         else if (key == SDLK_RIGHT) {
 
-            cursorX =
-                min(
-                    SIZE - 1,
-                    cursorX + 1
-                );
+            if (cursorX < SIZE - 1) {
+                cursorX++;
+            }
         }
 
         else if (key == SDLK_UP) {
 
-            cursorY =
-                max(0, cursorY - 1);
+            if (cursorY > 0) {
+                cursorY--;
+            }
         }
 
         else if (key == SDLK_DOWN) {
 
-            cursorY =
-                min(
-                    SIZE - 1,
-                    cursorY + 1
-                );
+            if (cursorY < SIZE - 1) {
+                cursorY++;
+            }
         }
+
+
+        // --------------------------------
+        // ハンマー使用
+        // --------------------------------
 
         else if (
             key == SDLK_RETURN ||
             key == SDLK_KP_ENTER
         ) {
 
-            if (
-                board[cursorY][cursorX]
-                != 0
-            ) {
-
-                saveUndoState();
-
-                board[cursorY][cursorX] = 0;
-
-                hammerCount--;
-
-                drawBoard();
-
-                clearQueuedKeys();
-
-                return;
+            // 空マスには使えない
+            if (board[cursorY][cursorX] == 0) {
+                continue;
             }
-        }
 
-        else if (
-            key == SDLK_ESCAPE
-        ) {
+
+            // Undo用保存
+            saveUndoState();
+
+
+            // --------------------------------
+            // 壊れるアニメーション
+            // --------------------------------
+
+            int brokenValue =
+                board[cursorY][cursorX];
+
+
+            for (int frame = 0; frame < 8; frame++) {
+
+                drawBackground();
+
+                for (int y = 0; y < SIZE; y++) {
+
+                    for (int x = 0; x < SIZE; x++) {
+
+                        if (board[y][x] == 0) {
+                            continue;
+                        }
+
+
+                        if (
+                            y == cursorY &&
+                            x == cursorX
+                        ) {
+
+                            float scale =
+                                1.0f -
+                                frame * 0.10f;
+
+                            if (scale < 0.1f) {
+                                scale = 0.1f;
+                            }
+
+                            drawTile(
+                                brokenValue,
+                                y,
+                                x,
+                                scale
+                            );
+
+                        } else {
+
+                            drawTile(
+                                board[y][x],
+                                y,
+                                x
+                            );
+                        }
+                    }
+                }
+
+                SDL_RenderPresent(renderer);
+
+                SDL_Delay(20);
+            }
+
+
+            // タイル削除
+            board[cursorY][cursorX] = 0;
+
+            hammerCount--;
+
 
             clearQueuedKeys();
+
+            drawBoard();
+
+            return;
+        }
+
+
+        // --------------------------------
+        // キャンセル
+        // --------------------------------
+
+        else if (key == SDLK_ESCAPE) {
+
+            clearQueuedKeys();
+
+            drawBoard();
 
             return;
         }
     }
 }
-
 
 // ============================================================
 // SHUFFLE
