@@ -1146,316 +1146,121 @@ bool moveBoard(Direction dir) {
 // HAMMER
 // ============================================================
 
-void useHammer() {
+void useShuffle() {
 
-    if (hammerCount <= 0) {
+    if (shuffleCount <= 0) {
         return;
     }
 
-    int cursorY = 0;
-    int cursorX = 0;
+    vector<int> values;
 
-    clearQueuedKeys();
+    // 盤面にある数字を集める
+    for (int y = 0; y < SIZE; y++) {
 
-    while (running) {
+        for (int x = 0; x < SIZE; x++) {
 
-        // --------------------------------
-        // まず盤面を描く
-        // ※ drawBoard() は使わない！
-        // --------------------------------
+            if (board[y][x] != 0) {
+
+                values.push_back(
+                    board[y][x]
+                );
+            }
+        }
+    }
+
+    if (values.size() <= 1) {
+        return;
+    }
+
+    // Undo用
+    saveUndoState();
+
+
+    // ========================================
+    // 乱数生成器
+    // ★ rng はここで1回だけ作る
+    // ========================================
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+
+
+    // 数字の順番をシャッフル
+    std::shuffle(
+        values.begin(),
+        values.end(),
+        rng
+    );
+
+
+    // ========================================
+    // 全マスの座標を作る
+    // ========================================
+
+    vector<pair<int, int>> positions;
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            positions.push_back(
+                {y, x}
+            );
+
+            board[y][x] = 0;
+        }
+    }
+
+
+    // 座標もシャッフル
+    std::shuffle(
+        positions.begin(),
+        positions.end(),
+        rng
+    );
+
+
+    // ========================================
+    // 数字をランダムな場所へ戻す
+    // ========================================
+
+    for (
+        int i = 0;
+        i < (int)values.size();
+        i++
+    ) {
+
+        board[
+            positions[i].first
+        ][
+            positions[i].second
+        ] = values[i];
+    }
+
+
+    shuffleCount--;
+
+
+    // ========================================
+    // 簡単なシャッフル演出
+    // ========================================
+
+    for (int i = 0; i < 4; i++) {
 
         drawBackground();
 
-        for (int y = 0; y < SIZE; y++) {
-
-            for (int x = 0; x < SIZE; x++) {
-
-                if (board[y][x] != 0) {
-
-                    drawTile(
-                        board[y][x],
-                        y,
-                        x
-                    );
-                }
-            }
-        }
-
-
-        // --------------------------------
-        // 選択中のマス
-        // --------------------------------
-
-        SDL_SetRenderDrawBlendMode(
-            renderer,
-            SDL_BLENDMODE_BLEND
-        );
-
-        SDL_Rect selection;
-
-        selection.x =
-            BOARD_X +
-            cursorX * (TILE + GAP);
-
-        selection.y =
-            BOARD_Y +
-            cursorY * (TILE + GAP);
-
-        selection.w = TILE;
-        selection.h = TILE;
-
-
-        // 空マスと数字ありで色を変える
-
-        if (board[cursorY][cursorX] != 0) {
-
-            SDL_SetRenderDrawColor(
-                renderer,
-                255,
-                60,
-                60,
-                100
-            );
-
-        } else {
-
-            SDL_SetRenderDrawColor(
-                renderer,
-                100,
-                100,
-                100,
-                80
-            );
-        }
-
-        SDL_RenderFillRect(
-            renderer,
-            &selection
-        );
-
-
-        // 選択枠
-        SDL_SetRenderDrawColor(
-            renderer,
-            255,
-            255,
-            255,
-            255
-        );
-
-        // 枠を少し太くする
-        for (int i = 0; i < 4; i++) {
-
-            SDL_Rect border = {
-                selection.x + i,
-                selection.y + i,
-                selection.w - i * 2,
-                selection.h - i * 2
-            };
-
-            SDL_RenderDrawRect(
-                renderer,
-                &border
-            );
-        }
-
-
-        drawText(
-            "HAMMER - Choose a tile",
-            WINDOW_W / 2,
-            185,
-            fontSmall,
-            {180, 50, 50, 255},
-            true
-        );
-
-
-        drawText(
-            "Arrow keys: Select   Enter: Break   ESC: Cancel",
-            WINDOW_W / 2,
-            685,
-            fontSmall,
-            {119, 110, 101, 255},
-            true
-        );
-
-
-        // ★ここで初めて画面を表示
         SDL_RenderPresent(renderer);
 
+        SDL_Delay(45);
 
-        // --------------------------------
-        // 入力待ち
-        // --------------------------------
+        drawBoard();
 
-        SDL_Event event;
-
-        if (!SDL_WaitEvent(&event)) {
-            continue;
-        }
-
-
-        if (event.type == SDL_QUIT) {
-
-            running = false;
-
-            return;
-        }
-
-
-        if (
-            event.type != SDL_KEYDOWN ||
-            event.key.repeat != 0
-        ) {
-
-            continue;
-        }
-
-
-        SDL_Keycode key =
-            event.key.keysym.sym;
-
-
-        // --------------------------------
-        // カーソル移動
-        // --------------------------------
-
-        if (key == SDLK_LEFT) {
-
-            if (cursorX > 0) {
-                cursorX--;
-            }
-        }
-
-        else if (key == SDLK_RIGHT) {
-
-            if (cursorX < SIZE - 1) {
-                cursorX++;
-            }
-        }
-
-        else if (key == SDLK_UP) {
-
-            if (cursorY > 0) {
-                cursorY--;
-            }
-        }
-
-        else if (key == SDLK_DOWN) {
-
-            if (cursorY < SIZE - 1) {
-                cursorY++;
-            }
-        }
-
-
-        // --------------------------------
-        // ハンマー使用
-        // --------------------------------
-
-        else if (
-            key == SDLK_RETURN ||
-            key == SDLK_KP_ENTER
-        ) {
-
-            // 空マスには使えない
-            if (board[cursorY][cursorX] == 0) {
-                continue;
-            }
-
-
-            // Undo用保存
-            saveUndoState();
-
-
-            // --------------------------------
-            // 壊れるアニメーション
-            // --------------------------------
-
-            int brokenValue =
-                board[cursorY][cursorX];
-
-
-            for (int frame = 0; frame < 8; frame++) {
-
-                drawBackground();
-
-                for (int y = 0; y < SIZE; y++) {
-
-                    for (int x = 0; x < SIZE; x++) {
-
-                        if (board[y][x] == 0) {
-                            continue;
-                        }
-
-
-                        if (
-                            y == cursorY &&
-                            x == cursorX
-                        ) {
-
-                            float scale =
-                                1.0f -
-                                frame * 0.10f;
-
-                            if (scale < 0.1f) {
-                                scale = 0.1f;
-                            }
-
-                            drawTile(
-                                brokenValue,
-                                y,
-                                x,
-                                scale
-                            );
-
-                        } else {
-
-                            drawTile(
-                                board[y][x],
-                                y,
-                                x
-                            );
-                        }
-                    }
-                }
-
-                SDL_RenderPresent(renderer);
-
-                SDL_Delay(20);
-            }
-
-
-            // タイル削除
-            board[cursorY][cursorX] = 0;
-
-            hammerCount--;
-
-
-            clearQueuedKeys();
-
-            drawBoard();
-
-            return;
-        }
-
-
-        // --------------------------------
-        // キャンセル
-        // --------------------------------
-
-        else if (key == SDLK_ESCAPE) {
-
-            clearQueuedKeys();
-
-            drawBoard();
-
-            return;
-        }
+        SDL_Delay(45);
     }
+
+
+    clearQueuedKeys();
 }
-
-
 
 // ============================================================
 // SHUFFLE
