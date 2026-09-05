@@ -5,6 +5,7 @@
 #include <ctime>
 #include <termios.h>
 #include <unistd.h>
+#include <string>
 
 using namespace std;
 
@@ -34,51 +35,78 @@ void clearScreen() {
     cout << "\033[2J\033[1;1H";
 }
 
-string getColor(int value) {
+string getTileStyle(int value) {
     switch (value) {
-        case 2:    return "\033[37m";
-        case 4:    return "\033[36m";
-        case 8:    return "\033[33m";
-        case 16:   return "\033[32m";
-        case 32:   return "\033[35m";
-        case 64:   return "\033[31m";
-        case 128:  return "\033[94m";
-        case 256:  return "\033[96m";
-        case 512:  return "\033[93m";
-        case 1024: return "\033[95m";
-        case 2048: return "\033[91m";
-        default:   return "\033[97m";
+        case 0:
+            return "\033[48;5;236m\033[37m";
+
+        case 2:
+            return "\033[48;5;230m\033[38;5;237m";
+
+        case 4:
+            return "\033[48;5;223m\033[38;5;237m";
+
+        case 8:
+            return "\033[48;5;215m\033[97m";
+
+        case 16:
+            return "\033[48;5;209m\033[97m";
+
+        case 32:
+            return "\033[48;5;203m\033[97m";
+
+        case 64:
+            return "\033[48;5;196m\033[97m";
+
+        case 128:
+            return "\033[48;5;221m\033[97m";
+
+        case 256:
+            return "\033[48;5;220m\033[97m";
+
+        case 512:
+            return "\033[48;5;214m\033[97m";
+
+        case 1024:
+            return "\033[48;5;208m\033[97m";
+
+        case 2048:
+            return "\033[48;5;226m\033[30m";
+
+        default:
+            return "\033[48;5;93m\033[97m";
     }
+}
+
+void printTile(int value) {
+    cout << getTileStyle(value);
+    cout << "\033[1m";
+
+    if (value == 0) {
+        cout << "        ";
+    } else {
+        cout << setw(8) << value;
+    }
+
+    cout << "\033[0m";
 }
 
 void printBoard() {
     clearScreen();
 
     cout << "\033[1m";
-    cout << "========== 2048 ==========\n";
+    cout << "=========== 2048 ===========\n";
     cout << "Score: " << score << "\n\n";
     cout << "\033[0m";
 
     for (int y = 0; y < SIZE; y++) {
-        cout << "+--------+--------+--------+--------+\n";
-
         for (int x = 0; x < SIZE; x++) {
-            cout << "|";
-
-            if (board[y][x] == 0) {
-                cout << setw(8) << " ";
-            } else {
-                cout << getColor(board[y][x]);
-                cout << "\033[1m";
-                cout << setw(8) << board[y][x];
-                cout << "\033[0m";
-            }
+            cout << " ";
+            printTile(board[y][x]);
         }
 
-        cout << "|\n";
+        cout << "\n\n";
     }
-
-    cout << "+--------+--------+--------+--------+\n\n";
 
     cout << "↑ ↓ ← → で移動\n";
     cout << "Q で終了\n";
@@ -304,18 +332,16 @@ int main() {
         printBoard();
 
         if (hasWon() && !winShown) {
-            cout << "\033[93m";
-            cout << "\033[1m";
+            cout << "\033[93m\033[1m";
             cout << "★ 2048達成！！ ★\n";
             cout << "\033[0m";
-            cout << "このまま続けられます。\n\n";
+            cout << "そのまま続行できます。\n\n";
 
             winShown = true;
         }
 
         if (!canMove()) {
-            cout << "\033[91m";
-            cout << "\033[1m";
+            cout << "\033[91m\033[1m";
             cout << "GAME OVER!\n";
             cout << "\033[0m";
 
@@ -331,11 +357,6 @@ int main() {
             break;
         }
 
-        // Linuxの矢印キー:
-        // ESC [ A = ↑
-        // ESC [ B = ↓
-        // ESC [ C = →
-        // ESC [ D = ←
         if (key == 27) {
             char second = getKey();
 
@@ -363,7 +384,7 @@ int main() {
     }
 
     cout << "\033[0m";
-    cout << "\n2048を終了しました。\n";
+    cout << "\n終了しました。\n";
 
     return 0;
 }
