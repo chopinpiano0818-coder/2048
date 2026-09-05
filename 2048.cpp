@@ -12,34 +12,76 @@
 
 using namespace std;
 
-const int WINDOW_W = 560;
-const int WINDOW_H = 720;
+// ============================================================
+// 基本設定
+// ============================================================
+
+const int WINDOW_W = 620;
+const int WINDOW_H = 800;
 
 const int SIZE = 4;
 
-const int BOARD_X = 40;
-const int BOARD_Y = 190;
+const int BOARD_X = 65;
+const int BOARD_Y = 210;
+
 const int TILE = 110;
 const int GAP = 10;
 
+const string BEST_FILE = "2048_best.txt";
+
 int board[SIZE][SIZE] = {};
+
 int score = 0;
 int bestScore = 0;
 
 bool running = true;
 bool won = false;
 
+// ============================================================
+// アイテム
+// ============================================================
+
+int hammerCount = 2;
+int shuffleCount = 1;
+int undoCount = 3;
+
+// ============================================================
+// Undo用
+// ============================================================
+
+int previousBoard[SIZE][SIZE] = {};
+int previousScore = 0;
+
+bool hasUndoData = false;
+
+// ============================================================
+// SDL
+// ============================================================
+
 SDL_Window* window = nullptr;
 SDL_Renderer* renderer = nullptr;
 
+TTF_Font* fontHuge = nullptr;
 TTF_Font* fontBig = nullptr;
 TTF_Font* fontMedium = nullptr;
 TTF_Font* fontSmall = nullptr;
 
 
-// =====================================
+// ============================================================
+// 方向
+// ============================================================
+
+enum Direction {
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN
+};
+
+
+// ============================================================
 // 色
-// =====================================
+// ============================================================
 
 SDL_Color getTileColor(int value) {
 
@@ -81,10 +123,17 @@ SDL_Color getTileColor(int value) {
         case 2048:
             return {237, 194, 46, 255};
 
+        case 4096:
+            return {190, 100, 210, 255};
+
+        case 8192:
+            return {150, 70, 190, 255};
+
         default:
             return {60, 58, 50, 255};
     }
 }
+
 
 SDL_Color getTextColor(int value) {
 
@@ -96,9 +145,20 @@ SDL_Color getTextColor(int value) {
 }
 
 
-// =====================================
+// ============================================================
+// キーキュー削除
+// ============================================================
+
+void clearQueuedKeys() {
+
+    SDL_FlushEvent(SDL_KEYDOWN);
+    SDL_FlushEvent(SDL_KEYUP);
+}
+
+
+// ============================================================
 // 文字表示
-// =====================================
+// ============================================================
 
 void drawText(
     const string& text,
@@ -126,16 +186,24 @@ void drawText(
             surface
         );
 
+    if (!texture) {
+
+        SDL_FreeSurface(surface);
+        return;
+    }
+
     SDL_Rect rect;
 
     rect.w = surface->w;
     rect.h = surface->h;
 
     if (center) {
+
         rect.x = x - rect.w / 2;
         rect.y = y - rect.h / 2;
-    }
-    else {
+
+    } else {
+
         rect.x = x;
         rect.y = y;
     }
@@ -152,11 +220,11 @@ void drawText(
 }
 
 
-// =====================================
-// 角丸っぽい四角
-// =====================================
+// ============================================================
+// 四角
+// ============================================================
 
-void drawRoundedRect(
+void drawRect(
     SDL_Rect rect,
     SDL_Color color
 ) {
@@ -176,9 +244,9 @@ void drawRoundedRect(
 }
 
 
-// =====================================
-// タイル描画
-// =====================================
+// ============================================================
+// タイル
+// ============================================================
 
 void drawTile(
     int value,
@@ -197,27 +265,27 @@ void drawTile(
         row * (TILE + GAP) +
         TILE / 2.0f;
 
-    int size =
+    int tileSize =
         static_cast<int>(
             TILE * scale
         );
 
     SDL_Rect rect;
 
-    rect.w = size;
-    rect.h = size;
+    rect.w = tileSize;
+    rect.h = tileSize;
 
     rect.x =
         static_cast<int>(
-            cx - size / 2.0f
+            cx - tileSize / 2.0f
         );
 
     rect.y =
         static_cast<int>(
-            cy - size / 2.0f
+            cy - tileSize / 2.0f
         );
 
-    drawRoundedRect(
+    drawRect(
         rect,
         getTileColor(value)
     );
@@ -247,9 +315,101 @@ void drawTile(
 }
 
 
-// =====================================
+// ============================================================
+// アイテムUI
+// ============================================================
+
+void drawItemBar() {
+
+    SDL_Color dark =
+        {119, 110, 101, 255};
+
+    SDL_Color itemColor =
+        {187, 173, 160, 255};
+
+    SDL_Rect hammerBox =
+        {65, 710, 150, 55};
+
+    SDL_Rect shuffleBox =
+        {235, 710, 150, 55};
+
+    SDL_Rect undoBox =
+        {405, 710, 150, 55};
+
+    drawRect(
+        hammerBox,
+        itemColor
+    );
+
+    drawRect(
+        shuffleBox,
+        itemColor
+    );
+
+    drawRect(
+        undoBox,
+        itemColor
+    );
+
+    drawText(
+        "H  HAMMER",
+        140,
+        727,
+        fontSmall,
+        {255, 255, 255, 255},
+        true
+    );
+
+    drawText(
+        "x" + to_string(hammerCount),
+        140,
+        749,
+        fontSmall,
+        {255, 255, 255, 255},
+        true
+    );
+
+    drawText(
+        "S  SHUFFLE",
+        310,
+        727,
+        fontSmall,
+        {255, 255, 255, 255},
+        true
+    );
+
+    drawText(
+        "x" + to_string(shuffleCount),
+        310,
+        749,
+        fontSmall,
+        {255, 255, 255, 255},
+        true
+    );
+
+    drawText(
+        "U  UNDO",
+        480,
+        727,
+        fontSmall,
+        {255, 255, 255, 255},
+        true
+    );
+
+    drawText(
+        "x" + to_string(undoCount),
+        480,
+        749,
+        fontSmall,
+        {255, 255, 255, 255},
+        true
+    );
+}
+
+
+// ============================================================
 // 背景
-// =====================================
+// ============================================================
 
 void drawBackground() {
 
@@ -265,31 +425,31 @@ void drawBackground() {
 
     drawText(
         "2048",
-        40,
+        65,
         35,
-        fontBig,
+        fontHuge,
         {119, 110, 101, 255}
     );
 
     SDL_Rect scoreBox =
-        {300, 35, 100, 70};
+        {340, 35, 100, 70};
 
     SDL_Rect bestBox =
-        {415, 35, 105, 70};
+        {455, 35, 100, 70};
 
-    drawRoundedRect(
+    drawRect(
         scoreBox,
         {187, 173, 160, 255}
     );
 
-    drawRoundedRect(
+    drawRect(
         bestBox,
         {187, 173, 160, 255}
     );
 
     drawText(
         "SCORE",
-        350,
+        390,
         50,
         fontSmall,
         {238, 228, 218, 255},
@@ -298,8 +458,8 @@ void drawBackground() {
 
     drawText(
         to_string(score),
-        350,
-        78,
+        390,
+        80,
         fontMedium,
         {255, 255, 255, 255},
         true
@@ -307,7 +467,7 @@ void drawBackground() {
 
     drawText(
         "BEST",
-        467,
+        505,
         50,
         fontSmall,
         {238, 228, 218, 255},
@@ -316,24 +476,38 @@ void drawBackground() {
 
     drawText(
         to_string(bestScore),
-        467,
-        78,
+        505,
+        80,
         fontMedium,
         {255, 255, 255, 255},
         true
+    );
+
+    drawText(
+        "Arrow keys: Move",
+        65,
+        145,
+        fontSmall,
+        {119, 110, 101, 255}
+    );
+
+    drawText(
+        "R: Restart   ESC: Quit",
+        350,
+        145,
+        fontSmall,
+        {119, 110, 101, 255}
     );
 
     SDL_Rect boardBack =
         {
             BOARD_X - GAP,
             BOARD_Y - GAP,
-            SIZE * TILE +
-            (SIZE + 1) * GAP,
-            SIZE * TILE +
-            (SIZE + 1) * GAP
+            SIZE * TILE + (SIZE + 1) * GAP,
+            SIZE * TILE + (SIZE + 1) * GAP
         };
 
-    drawRoundedRect(
+    drawRect(
         boardBack,
         {187, 173, 160, 255}
     );
@@ -350,27 +524,13 @@ void drawBackground() {
         }
     }
 
-    drawText(
-        "Arrow keys: move",
-        40,
-        670,
-        fontSmall,
-        {119, 110, 101, 255}
-    );
-
-    drawText(
-        "R: restart   ESC: quit",
-        300,
-        670,
-        fontSmall,
-        {119, 110, 101, 255}
-    );
+    drawItemBar();
 }
 
 
-// =====================================
-// 普通の盤面描画
-// =====================================
+// ============================================================
+// 盤面
+// ============================================================
 
 void drawBoard() {
 
@@ -395,18 +555,19 @@ void drawBoard() {
 }
 
 
-// =====================================
-// ベストスコア保存
-// =====================================
+// ============================================================
+// BEST
+// ============================================================
 
 void loadBest() {
 
-    ifstream file("2048_best.txt");
+    ifstream file(BEST_FILE);
 
     if (file) {
         file >> bestScore;
     }
 }
+
 
 void saveBest() {
 
@@ -414,20 +575,77 @@ void saveBest() {
 
         bestScore = score;
 
-        ofstream file(
-            "2048_best.txt"
-        );
+        ofstream file(BEST_FILE);
 
-        file << bestScore;
+        if (file) {
+            file << bestScore;
+        }
     }
 }
 
 
-// =====================================
-// 新しいタイル
-// =====================================
+// ============================================================
+// Undo保存
+// ============================================================
 
-void addRandomTile(bool animate = true) {
+void saveUndoState() {
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            previousBoard[y][x] =
+                board[y][x];
+        }
+    }
+
+    previousScore = score;
+
+    hasUndoData = true;
+}
+
+
+// ============================================================
+// Undo
+// ============================================================
+
+void useUndo() {
+
+    if (
+        undoCount <= 0 ||
+        !hasUndoData
+    ) {
+        return;
+    }
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            board[y][x] =
+                previousBoard[y][x];
+        }
+    }
+
+    score = previousScore;
+
+    undoCount--;
+
+    hasUndoData = false;
+
+    drawBoard();
+
+    clearQueuedKeys();
+}
+
+
+// ============================================================
+// 新規タイル
+// ============================================================
+
+void addRandomTile(
+    bool animate = true
+) {
 
     vector<pair<int, int>> empty;
 
@@ -450,8 +668,7 @@ void addRandomTile(bool animate = true) {
 
     auto pos =
         empty[
-            rand() %
-            empty.size()
+            rand() % empty.size()
         ];
 
     int y = pos.first;
@@ -466,7 +683,13 @@ void addRandomTile(bool animate = true) {
         return;
     }
 
-    for (int i = 0; i <= 8; i++) {
+    const int frames = 9;
+
+    for (
+        int i = 0;
+        i <= frames;
+        i++
+    ) {
 
         drawBackground();
 
@@ -483,9 +706,13 @@ void addRandomTile(bool animate = true) {
                     xx == x
                 ) {
 
+                    float t =
+                        i /
+                        (float)frames;
+
                     float scale =
-                        0.2f +
-                        i / 8.0f * 0.8f;
+                        0.15f +
+                        0.85f * t;
 
                     drawTile(
                         board[yy][xx],
@@ -493,9 +720,8 @@ void addRandomTile(bool animate = true) {
                         xx,
                         scale
                     );
-                }
 
-                else {
+                } else {
 
                     drawTile(
                         board[yy][xx],
@@ -513,44 +739,9 @@ void addRandomTile(bool animate = true) {
 }
 
 
-// =====================================
-// 動くタイル情報
-// =====================================
-
-struct MovingTile {
-
-    int value;
-
-    float fromRow;
-    float fromCol;
-
-    float toRow;
-    float toCol;
-};
-
-struct MergeTile {
-
-    int row;
-    int col;
-};
-
-
-// =====================================
-// 方向
-// =====================================
-
-enum Direction {
-
-    LEFT,
-    RIGHT,
-    UP,
-    DOWN
-};
-
-
-// =====================================
-// 座標変換
-// =====================================
+// ============================================================
+// 座標
+// ============================================================
 
 pair<int, int> getCell(
     Direction dir,
@@ -583,29 +774,59 @@ pair<int, int> getCell(
 }
 
 
-// =====================================
+// ============================================================
+// 動くタイル
+// ============================================================
+
+struct MovingTile {
+
+    int value;
+
+    float fromRow;
+    float fromCol;
+
+    float toRow;
+    float toCol;
+};
+
+
+struct MergeTile {
+
+    int row;
+    int col;
+};
+
+
+// ============================================================
 // 移動
-// =====================================
+// ============================================================
 
 bool moveBoard(Direction dir) {
 
     int oldBoard[SIZE][SIZE];
 
     for (int y = 0; y < SIZE; y++) {
+
         for (int x = 0; x < SIZE; x++) {
-            oldBoard[y][x] = board[y][x];
-            board[y][x] = 0;
+
+            oldBoard[y][x] =
+                board[y][x];
         }
     }
 
+    int oldScore = score;
+
     vector<MovingTile> moving;
     vector<MergeTile> merges;
+
+    int newBoard[SIZE][SIZE] = {};
 
     bool changed = false;
 
     for (int line = 0; line < SIZE; line++) {
 
         struct Item {
+
             int value;
             int pos;
         };
@@ -645,9 +866,7 @@ bool moveBoard(Direction dir) {
         ) {
 
             if (
-                i + 1 <
-                (int)items.size()
-                &&
+                i + 1 < (int)items.size() &&
                 items[i].value ==
                 items[i + 1].value
             ) {
@@ -689,15 +908,17 @@ bool moveBoard(Direction dir) {
                     (float)target.second
                 });
 
-                board[
+                int mergedValue =
+                    items[i].value * 2;
+
+                newBoard[
                     target.first
                 ][
                     target.second
                 ] =
-                    items[i].value * 2;
+                    mergedValue;
 
-                score +=
-                    items[i].value * 2;
+                score += mergedValue;
 
                 merges.push_back({
                     target.first,
@@ -707,9 +928,8 @@ bool moveBoard(Direction dir) {
                 changed = true;
 
                 i++;
-            }
 
-            else {
+            } else {
 
                 auto from =
                     getCell(
@@ -733,7 +953,7 @@ bool moveBoard(Direction dir) {
                     (float)target.second
                 });
 
-                board[
+                newBoard[
                     target.first
                 ][
                     target.second
@@ -741,10 +961,10 @@ bool moveBoard(Direction dir) {
                     items[i].value;
 
                 if (
-                    from.first != target.first
-                    ||
+                    from.first != target.first ||
                     from.second != target.second
                 ) {
+
                     changed = true;
                 }
             }
@@ -755,31 +975,42 @@ bool moveBoard(Direction dir) {
 
     if (!changed) {
 
-        for (int y = 0; y < SIZE; y++) {
-
-            for (int x = 0; x < SIZE; x++) {
-
-                board[y][x] =
-                    oldBoard[y][x];
-            }
-        }
+        score = oldScore;
 
         return false;
     }
 
-    // =================================
+    // Undo用に移動前を保存
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            previousBoard[y][x] =
+                oldBoard[y][x];
+        }
+    }
+
+    previousScore = oldScore;
+    hasUndoData = true;
+
+
+    // ========================================================
     // スライドアニメーション
-    // =================================
+    // ========================================================
 
-    const int FRAMES = 10;
+    const int FRAMES = 12;
 
-    for (int frame = 0; frame <= FRAMES; frame++) {
+    for (
+        int frame = 0;
+        frame <= FRAMES;
+        frame++
+    ) {
 
         float t =
             frame /
             (float)FRAMES;
 
-        // ease-out
         float smooth =
             1.0f -
             pow(
@@ -817,16 +1048,34 @@ bool moveBoard(Direction dir) {
 
         SDL_RenderPresent(renderer);
 
-        SDL_Delay(12);
+        SDL_Delay(10);
     }
 
-    // =================================
-    // 合体時ボヨン
-    // =================================
+    // 新盤面反映
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            board[y][x] =
+                newBoard[y][x];
+        }
+    }
+
+
+    // ========================================================
+    // 合体ボヨン
+    // ========================================================
 
     if (!merges.empty()) {
 
-        for (int frame = 0; frame < 8; frame++) {
+        const int BOUNCE_FRAMES = 10;
+
+        for (
+            int frame = 0;
+            frame < BOUNCE_FRAMES;
+            frame++
+        ) {
 
             drawBackground();
 
@@ -850,19 +1099,18 @@ bool moveBoard(Direction dir) {
                             m.col == x
                         ) {
 
-                            if (frame < 4) {
+                            if (frame < 5) {
 
                                 scale =
                                     1.0f +
-                                    frame * 0.05f;
-                            }
+                                    frame * 0.045f;
 
-                            else {
+                            } else {
 
                                 scale =
-                                    1.2f -
-                                    (frame - 4)
-                                    * 0.05f;
+                                    1.18f -
+                                    (frame - 5)
+                                    * 0.036f;
                             }
                         }
                     }
@@ -878,7 +1126,7 @@ bool moveBoard(Direction dir) {
 
             SDL_RenderPresent(renderer);
 
-            SDL_Delay(15);
+            SDL_Delay(12);
         }
     }
 
@@ -886,13 +1134,258 @@ bool moveBoard(Direction dir) {
 
     addRandomTile(true);
 
+    // アニメーション中の入力を捨てる
+    clearQueuedKeys();
+
     return true;
 }
 
 
-// =====================================
-// ゲームオーバー
-// =====================================
+// ============================================================
+// HAMMER
+// ============================================================
+
+void useHammer() {
+
+    if (hammerCount <= 0) {
+        return;
+    }
+
+    int cursorY = 0;
+    int cursorX = 0;
+
+    clearQueuedKeys();
+
+    while (true) {
+
+        drawBoard();
+
+        SDL_SetRenderDrawBlendMode(
+            renderer,
+            SDL_BLENDMODE_BLEND
+        );
+
+        SDL_Rect selection;
+
+        selection.x =
+            BOARD_X +
+            cursorX * (TILE + GAP);
+
+        selection.y =
+            BOARD_Y +
+            cursorY * (TILE + GAP);
+
+        selection.w = TILE;
+        selection.h = TILE;
+
+        SDL_SetRenderDrawColor(
+            renderer,
+            255,
+            40,
+            40,
+            150
+        );
+
+        SDL_RenderFillRect(
+            renderer,
+            &selection
+        );
+
+        drawText(
+            "HAMMER: Choose a tile",
+            WINDOW_W / 2,
+            185,
+            fontSmall,
+            {180, 50, 50, 255},
+            true
+        );
+
+        SDL_RenderPresent(renderer);
+
+        SDL_Event event;
+
+        if (!SDL_WaitEvent(&event)) {
+            continue;
+        }
+
+        if (event.type == SDL_QUIT) {
+
+            running = false;
+            return;
+        }
+
+        if (
+            event.type != SDL_KEYDOWN ||
+            event.key.repeat != 0
+        ) {
+            continue;
+        }
+
+        SDL_Keycode key =
+            event.key.keysym.sym;
+
+        if (key == SDLK_LEFT) {
+
+            cursorX =
+                max(0, cursorX - 1);
+        }
+
+        else if (key == SDLK_RIGHT) {
+
+            cursorX =
+                min(
+                    SIZE - 1,
+                    cursorX + 1
+                );
+        }
+
+        else if (key == SDLK_UP) {
+
+            cursorY =
+                max(0, cursorY - 1);
+        }
+
+        else if (key == SDLK_DOWN) {
+
+            cursorY =
+                min(
+                    SIZE - 1,
+                    cursorY + 1
+                );
+        }
+
+        else if (
+            key == SDLK_RETURN ||
+            key == SDLK_KP_ENTER
+        ) {
+
+            if (
+                board[cursorY][cursorX]
+                != 0
+            ) {
+
+                saveUndoState();
+
+                board[cursorY][cursorX] = 0;
+
+                hammerCount--;
+
+                drawBoard();
+
+                clearQueuedKeys();
+
+                return;
+            }
+        }
+
+        else if (
+            key == SDLK_ESCAPE
+        ) {
+
+            clearQueuedKeys();
+
+            return;
+        }
+    }
+}
+
+
+// ============================================================
+// SHUFFLE
+// ============================================================
+
+void useShuffle() {
+
+    if (shuffleCount <= 0) {
+        return;
+    }
+
+    vector<int> values;
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            if (board[y][x] != 0) {
+
+                values.push_back(
+                    board[y][x]
+                );
+            }
+        }
+    }
+
+    if (values.size() <= 1) {
+        return;
+    }
+
+    saveUndoState();
+
+    shuffle(
+        values.begin(),
+        values.end(),
+        std::default_random_engine(
+            (unsigned)time(nullptr)
+        )
+    );
+
+    vector<pair<int, int>> positions;
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            positions.push_back(
+                {y, x}
+            );
+
+            board[y][x] = 0;
+        }
+    }
+
+    random_shuffle(
+        positions.begin(),
+        positions.end()
+    );
+
+    for (
+        int i = 0;
+        i < (int)values.size();
+        i++
+    ) {
+
+        board[
+            positions[i].first
+        ][
+            positions[i].second
+        ] =
+            values[i];
+    }
+
+    shuffleCount--;
+
+    // 簡単なシャッフル演出
+
+    for (int i = 0; i < 4; i++) {
+
+        drawBackground();
+
+        SDL_RenderPresent(renderer);
+
+        SDL_Delay(45);
+
+        drawBoard();
+
+        SDL_Delay(45);
+    }
+
+    clearQueuedKeys();
+}
+
+
+// ============================================================
+// 動けるか
+// ============================================================
 
 bool canMove() {
 
@@ -909,6 +1402,7 @@ bool canMove() {
                 board[y][x] ==
                 board[y][x + 1]
             ) {
+
                 return true;
             }
 
@@ -917,6 +1411,7 @@ bool canMove() {
                 board[y][x] ==
                 board[y + 1][x]
             ) {
+
                 return true;
             }
         }
@@ -926,14 +1421,14 @@ bool canMove() {
 }
 
 
-// =====================================
-// 勝利
-// =====================================
+// ============================================================
+// 2048判定
+// ============================================================
 
-void checkWin() {
+bool checkWin() {
 
     if (won) {
-        return;
+        return false;
     }
 
     for (int y = 0; y < SIZE; y++) {
@@ -943,40 +1438,220 @@ void checkWin() {
             if (board[y][x] >= 2048) {
 
                 won = true;
-                return;
+
+                return true;
             }
         }
     }
+
+    return false;
 }
 
 
-// =====================================
-// リスタート
-// =====================================
+// ============================================================
+// WINメニュー
+// ============================================================
 
-void restart() {
+enum WinChoice {
 
-    for (int y = 0; y < SIZE; y++) {
+    WIN_CONTINUE,
+    WIN_QUIT
+};
 
-        for (int x = 0; x < SIZE; x++) {
 
-            board[y][x] = 0;
+WinChoice showWinMenu() {
+
+    clearQueuedKeys();
+
+    int selected = 0;
+
+    while (running) {
+
+        drawBoard();
+
+        SDL_SetRenderDrawBlendMode(
+            renderer,
+            SDL_BLENDMODE_BLEND
+        );
+
+        SDL_SetRenderDrawColor(
+            renderer,
+            238,
+            228,
+            218,
+            235
+        );
+
+        SDL_Rect overlay = {
+            BOARD_X - GAP,
+            BOARD_Y - GAP,
+            SIZE * TILE +
+            (SIZE + 1) * GAP,
+            SIZE * TILE +
+            (SIZE + 1) * GAP
+        };
+
+        SDL_RenderFillRect(
+            renderer,
+            &overlay
+        );
+
+        drawText(
+            "2048 CLEAR!",
+            WINDOW_W / 2,
+            330,
+            fontHuge,
+            {119, 110, 101, 255},
+            true
+        );
+
+        drawText(
+            "Continue?",
+            WINDOW_W / 2,
+            395,
+            fontMedium,
+            {119, 110, 101, 255},
+            true
+        );
+
+
+        SDL_Rect continueButton =
+            {165, 440, 290, 60};
+
+        SDL_Rect quitButton =
+            {165, 515, 290, 60};
+
+
+        if (selected == 0) {
+
+            drawRect(
+                continueButton,
+                {237, 194, 46, 255}
+            );
+
+        } else {
+
+            drawRect(
+                continueButton,
+                {187, 173, 160, 255}
+            );
+        }
+
+
+        if (selected == 1) {
+
+            drawRect(
+                quitButton,
+                {246, 94, 59, 255}
+            );
+
+        } else {
+
+            drawRect(
+                quitButton,
+                {187, 173, 160, 255}
+            );
+        }
+
+
+        drawText(
+            "CONTINUE",
+            WINDOW_W / 2,
+            470,
+            fontMedium,
+            {255, 255, 255, 255},
+            true
+        );
+
+        drawText(
+            "QUIT",
+            WINDOW_W / 2,
+            545,
+            fontMedium,
+            {255, 255, 255, 255},
+            true
+        );
+
+        drawText(
+            "Arrow keys + Enter",
+            WINDOW_W / 2,
+            610,
+            fontSmall,
+            {119, 110, 101, 255},
+            true
+        );
+
+        SDL_RenderPresent(renderer);
+
+
+        SDL_Event event;
+
+        if (!SDL_WaitEvent(&event)) {
+            continue;
+        }
+
+        if (event.type == SDL_QUIT) {
+
+            return WIN_QUIT;
+        }
+
+        if (
+            event.type == SDL_KEYDOWN &&
+            event.key.repeat == 0
+        ) {
+
+            SDL_Keycode key =
+                event.key.keysym.sym;
+
+            if (
+                key == SDLK_UP ||
+                key == SDLK_LEFT
+            ) {
+
+                selected = 0;
+            }
+
+            else if (
+                key == SDLK_DOWN ||
+                key == SDLK_RIGHT
+            ) {
+
+                selected = 1;
+            }
+
+            else if (
+                key == SDLK_RETURN ||
+                key == SDLK_KP_ENTER
+            ) {
+
+                clearQueuedKeys();
+
+                if (selected == 0) {
+
+                    return WIN_CONTINUE;
+
+                } else {
+
+                    return WIN_QUIT;
+                }
+            }
+
+            else if (
+                key == SDLK_ESCAPE
+            ) {
+
+                return WIN_QUIT;
+            }
         }
     }
 
-    score = 0;
-    won = false;
-
-    addRandomTile(false);
-    addRandomTile(false);
-
-    drawBoard();
+    return WIN_QUIT;
 }
 
 
-// =====================================
-// GAME OVER 表示
-// =====================================
+// ============================================================
+// GAME OVER
+// ============================================================
 
 void drawGameOver() {
 
@@ -992,16 +1667,17 @@ void drawGameOver() {
         238,
         228,
         218,
-        200
+        220
     );
 
-    SDL_Rect overlay =
-        {
-            BOARD_X - GAP,
-            BOARD_Y - GAP,
-            490,
-            490
-        };
+    SDL_Rect overlay = {
+        BOARD_X - GAP,
+        BOARD_Y - GAP,
+        SIZE * TILE +
+        (SIZE + 1) * GAP,
+        SIZE * TILE +
+        (SIZE + 1) * GAP
+    };
 
     SDL_RenderFillRect(
         renderer,
@@ -1012,15 +1688,24 @@ void drawGameOver() {
         "GAME OVER",
         WINDOW_W / 2,
         390,
-        fontBig,
+        fontHuge,
         {119, 110, 101, 255},
         true
     );
 
     drawText(
-        "Press R to restart",
+        "R: Restart",
         WINDOW_W / 2,
-        450,
+        455,
+        fontMedium,
+        {119, 110, 101, 255},
+        true
+    );
+
+    drawText(
+        "ESC: Quit",
+        WINDOW_W / 2,
+        500,
         fontSmall,
         {119, 110, 101, 255},
         true
@@ -1030,13 +1715,50 @@ void drawGameOver() {
 }
 
 
-// =====================================
+// ============================================================
+// リスタート
+// ============================================================
+
+void restartGame() {
+
+    for (int y = 0; y < SIZE; y++) {
+
+        for (int x = 0; x < SIZE; x++) {
+
+            board[y][x] = 0;
+        }
+    }
+
+    score = 0;
+
+    won = false;
+
+    hammerCount = 2;
+    shuffleCount = 1;
+    undoCount = 3;
+
+    hasUndoData = false;
+
+    addRandomTile(false);
+    addRandomTile(false);
+
+    drawBoard();
+
+    clearQueuedKeys();
+}
+
+
+// ============================================================
 // 初期化
-// =====================================
+// ============================================================
 
 bool init() {
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (
+        SDL_Init(
+            SDL_INIT_VIDEO
+        ) < 0
+    ) {
 
         cout
             << "SDL error: "
@@ -1058,7 +1780,7 @@ bool init() {
 
     window =
         SDL_CreateWindow(
-            "2048",
+            "2048 Items Edition",
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             WINDOW_W,
@@ -1085,8 +1807,6 @@ bool init() {
 
     if (!renderer) {
 
-        // Raspberry Pi環境によっては
-        // accelerated renderer が使えないのでfallback
         renderer =
             SDL_CreateRenderer(
                 window,
@@ -1095,28 +1815,47 @@ bool init() {
             );
     }
 
+    if (!renderer) {
+
+        cout
+            << SDL_GetError()
+            << endl;
+
+        return false;
+    }
+
+
     string fontPath =
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+
+
+    fontHuge =
+        TTF_OpenFont(
+            fontPath.c_str(),
+            48
+        );
 
     fontBig =
         TTF_OpenFont(
             fontPath.c_str(),
-            46
+            38
         );
 
     fontMedium =
         TTF_OpenFont(
             fontPath.c_str(),
-            28
+            25
         );
 
     fontSmall =
         TTF_OpenFont(
             fontPath.c_str(),
-            18
+            16
         );
 
+
     if (
+        !fontHuge ||
         !fontBig ||
         !fontMedium ||
         !fontSmall
@@ -1134,14 +1873,15 @@ bool init() {
 }
 
 
-// =====================================
+// ============================================================
 // 終了
-// =====================================
+// ============================================================
 
 void cleanup() {
 
     saveBest();
 
+    TTF_CloseFont(fontHuge);
     TTF_CloseFont(fontBig);
     TTF_CloseFont(fontMedium);
     TTF_CloseFont(fontSmall);
@@ -1154,21 +1894,24 @@ void cleanup() {
 }
 
 
-// =====================================
+// ============================================================
 // MAIN
-// =====================================
+// ============================================================
 
 int main() {
 
-    srand(time(nullptr));
+    srand(
+        (unsigned)time(nullptr)
+    );
 
     loadBest();
 
     if (!init()) {
+
         return 1;
     }
 
-    restart();
+    restartGame();
 
     bool gameOver = false;
 
@@ -1176,86 +1919,208 @@ int main() {
 
         SDL_Event event;
 
-        while (SDL_PollEvent(&event)) {
 
-            if (event.type == SDL_QUIT) {
+        if (
+            !SDL_WaitEvent(
+                &event
+            )
+        ) {
 
-                running = false;
-            }
-
-            if (
-                event.type ==
-                SDL_KEYDOWN
-            ) {
-
-                SDL_Keycode key =
-                    event.key.keysym.sym;
-
-                if (key == SDLK_ESCAPE) {
-
-                    running = false;
-                }
-
-                else if (key == SDLK_r) {
-
-                    restart();
-                    gameOver = false;
-                }
-
-                else if (!gameOver) {
-
-                    if (key == SDLK_LEFT) {
-
-                        moveBoard(LEFT);
-                    }
-
-                    else if (key == SDLK_RIGHT) {
-
-                        moveBoard(RIGHT);
-                    }
-
-                    else if (key == SDLK_UP) {
-
-                        moveBoard(UP);
-                    }
-
-                    else if (key == SDLK_DOWN) {
-
-                        moveBoard(DOWN);
-                    }
-
-                    checkWin();
-
-                    if (!canMove()) {
-
-                        gameOver = true;
-                        drawGameOver();
-                    }
-                }
-            }
+            continue;
         }
 
-        if (!gameOver) {
+
+        if (
+            event.type ==
+            SDL_QUIT
+        ) {
+
+            running = false;
+
+            break;
+        }
+
+
+        if (
+            event.type != SDL_KEYDOWN ||
+            event.key.repeat != 0
+        ) {
+
+            continue;
+        }
+
+
+        SDL_Keycode key =
+            event.key.keysym.sym;
+
+
+        // ====================================================
+        // ESC
+        // ====================================================
+
+        if (key == SDLK_ESCAPE) {
+
+            running = false;
+
+            break;
+        }
+
+
+        // ====================================================
+        // RESTART
+        // ====================================================
+
+        if (key == SDLK_r) {
+
+            restartGame();
+
+            gameOver = false;
+
+            continue;
+        }
+
+
+        // ====================================================
+        // GAME OVER中
+        // ====================================================
+
+        if (gameOver) {
+
+            continue;
+        }
+
+
+        // ====================================================
+        // アイテム
+        // ====================================================
+
+        if (key == SDLK_h) {
+
+            useHammer();
+
+            if (!running) {
+                break;
+            }
 
             drawBoard();
 
-            if (won) {
+            continue;
+        }
 
-                drawText(
-                    "2048!",
-                    WINDOW_W / 2,
-                    145,
-                    fontMedium,
-                    {237, 194, 46, 255},
-                    true
+
+        if (key == SDLK_s) {
+
+            useShuffle();
+
+            drawBoard();
+
+            continue;
+        }
+
+
+        if (key == SDLK_u) {
+
+            useUndo();
+
+            drawBoard();
+
+            continue;
+        }
+
+
+        // ====================================================
+        // 移動
+        // ====================================================
+
+        bool moved = false;
+
+
+        if (key == SDLK_LEFT) {
+
+            moved =
+                moveBoard(
+                    LEFT
                 );
+        }
 
-                SDL_RenderPresent(renderer);
+
+        else if (
+            key == SDLK_RIGHT
+        ) {
+
+            moved =
+                moveBoard(
+                    RIGHT
+                );
+        }
+
+
+        else if (
+            key == SDLK_UP
+        ) {
+
+            moved =
+                moveBoard(
+                    UP
+                );
+        }
+
+
+        else if (
+            key == SDLK_DOWN
+        ) {
+
+            moved =
+                moveBoard(
+                    DOWN
+                );
+        }
+
+
+        // ====================================================
+        // 動いたときだけ判定
+        // ====================================================
+
+        if (moved) {
+
+            saveBest();
+
+
+            // 2048完成
+
+            if (checkWin()) {
+
+                WinChoice choice =
+                    showWinMenu();
+
+                if (
+                    choice ==
+                    WIN_QUIT
+                ) {
+
+                    running = false;
+
+                    break;
+                }
+            }
+
+
+            // GAME OVER
+
+            if (!canMove()) {
+
+                gameOver = true;
+
+                drawGameOver();
+
+                continue;
             }
         }
 
-        SDL_Delay(5);
+
+        drawBoard();
     }
+
 
     cleanup();
 
